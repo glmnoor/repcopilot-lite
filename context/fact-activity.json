@@ -1,0 +1,5 @@
+[
+  {"hcpId":"rao","trx":142,"trend":-18,"daysSinceLastTouch":31,"lastInteraction":"Access workflow discussion","engagementSignal":"Staff requested approved PA support."},
+  {"hcpId":"lee","trx":98,"trend":-7,"daysSinceLastTouch":14,"lastInteraction":"Email follow-up","engagementSignal":"Open to approved access materials."},
+  {"hcpId":"bose","trx":70,"trend":-4,"daysSinceLastTouch":19,"lastInteraction":"Opt-out recorded","engagementSignal":"No contact permitted."}
+]

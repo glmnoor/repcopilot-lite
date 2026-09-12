@@ -1,0 +1,5 @@
+[
+  {"hcpId":"rao","name":"Dr. Priya Rao","specialty":"Medical Oncology","accountId":"northwell","tier":"A","eligible":true,"channel":"In-person","objective":"Clarify the approved access pathway and confirm the right office contact."},
+  {"hcpId":"lee","name":"Dr. James Lee","specialty":"Medical Oncology","accountId":"hudson","tier":"B","eligible":true,"channel":"Email","objective":"Share the approved patient identification checklist and ask about workflow friction."},
+  {"hcpId":"bose","name":"Dr. Nia Bose","specialty":"Medical Oncology","accountId":"eastside","tier":"B","eligible":false,"channel":"Opted out","objective":"No outreach. Route any account need through the approved service channel."}
+]
