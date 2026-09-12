@@ -1,0 +1,12 @@
+{
+  "version":"2026.09",
+  "rules":[
+    "No clinical guidance",
+    "No off-label promotion",
+    "No patient-level data",
+    "Use approved content only",
+    "Document only business-relevant information",
+    "Require confirmation before CRM write-back"
+  ],
+  "blockedStatuses":["opted_out","no_see","not_eligible"]
+}

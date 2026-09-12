@@ -1,0 +1,5 @@
+[
+  {"id":"pa-support","name":"Approved PA Support Resource","use":"Access workflow conversations","channels":["In-person","Email"],"status":"approved","expires":"2027-12-31"},
+  {"id":"follow-up","name":"Approved Follow-up Checklist","use":"Compliant re-engagement","channels":["Email","In-person"],"status":"approved","expires":"2027-12-31"},
+  {"id":"account-plan","name":"Approved account plan","use":"Planned cadence maintenance","channels":["In-person","Email"],"status":"approved","expires":"2027-12-31"}
+]
