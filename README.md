@@ -5,8 +5,9 @@ A clean local agent with no Python, no React, and no package installation. It us
 ## Run
 
 ```powershell
-$env:LLM_BASE_URL = "http://localhost:11434/v1"
-$env:LLM_MODEL = "llama3.2:3b"
+$env:LLM_BASE_URL = "https://api.openai.com/v1"
+$env:LLM_MODEL = "gpt-4o-mini"
+$env:LLM_API_KEY = "your_new_key"
 node server.mjs
 ```
 
