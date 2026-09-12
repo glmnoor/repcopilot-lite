@@ -11,18 +11,33 @@ const root = fileURLToPath(new URL('./public/', import.meta.url));
 const contextRoot = fileURLToPath(new URL('./context/', import.meta.url));
 const interactions = [];
 
-const [hcpDimension, accountDimension, activityFacts, accessFacts, content, compliance, territory] = await Promise.all([
+const [hcpDimension, accountDimension, activityFacts, accessFacts, content, compliance, territory, responseFormats] = await Promise.all([
   readFile(join(contextRoot, 'dim-hcp.json'), 'utf8').then(JSON.parse),
   readFile(join(contextRoot, 'dim-account.json'), 'utf8').then(JSON.parse),
   readFile(join(contextRoot, 'fact-activity.json'), 'utf8').then(JSON.parse),
   readFile(join(contextRoot, 'fact-access.json'), 'utf8').then(JSON.parse),
   readFile(join(contextRoot, 'approved-content.json'), 'utf8').then(JSON.parse),
   readFile(join(contextRoot, 'compliance-rules.json'), 'utf8').then(JSON.parse),
-  readFile(join(contextRoot, 'territory.json'), 'utf8').then(JSON.parse)
+  readFile(join(contextRoot, 'territory.json'), 'utf8').then(JSON.parse),
+  readFile(join(contextRoot, 'response-formats.md'), 'utf8')
 ]);
 const semanticView = createSemanticView({hcp:hcpDimension, accounts:accountDimension, activity:activityFacts, access:accessFacts});
 const hcps = semanticView;
 const context = {content, rules:compliance.rules, sources:sourcesFor()};
+
+function formatResponse(section, values) {
+  const marker = `## ${section}`;
+  const start = responseFormats.indexOf(marker);
+  if (start < 0) return responseFormats;
+  const bodyStart = start + marker.length;
+  const next = responseFormats.indexOf('\n## ', bodyStart);
+  const template = responseFormats.slice(bodyStart, next < 0 ? responseFormats.length : next).trim();
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => values[key] ?? '');
+}
+
+function rankedHcps() {
+  return semanticView.map(hcp => ({hcp, action:identifyNextBestAction(hcp, content)})).sort((left, right) => right.action.score - left.action.score).map(item => ({...item.hcp, priorityScore:item.action.score, priority:item.action.priority}));
+}
 
 function getHcp(id) { return semanticView.find(hcp => hcp.hcpId === id); }
 function plan(hcp) {
@@ -62,19 +77,22 @@ async function agent({message, hcpId}) {
   const rows = retrieve(semanticView, parsed.query);
   const trace = [{tool:'interpret_request', status:'passed', output:parsed}, {tool:'retrieve_semantic_view', status:'passed', output:{rowCount:rows.length, sources:sourcesFor(parsed.query)}}];
   if (parsed.intent === 'list_targets') {
-    return {intent:parsed.intent, answer:rows.map((row, index) => `${index + 1}. ${row.name} — ${row.account} — ${row.specialty} — ${row.tier === 'A' ? 'Tier A' : 'Tier B'} — ${row.channel}`).join('\n') || 'No eligible HCPs matched.', rows, sources:sourcesFor(parsed.query), trace};
+    const rankedRows = rows.map(row => ({row, action:identifyNextBestAction(row, content)})).sort((left, right) => right.action.score - left.action.score);
+    const answerRows = rankedRows.map((item, index) => `${index + 1}. ${item.row.name} — ${item.row.account} — ${item.action.priority} priority (${item.action.score}/100)`).join('\n');
+    return {intent:parsed.intent, answer:formatResponse('list_targets', {count:rows.length, rows:answerRows}), rows:rankedRows.map(item => item.row), sources:sourcesFor(parsed.query), trace};
   }
-  if (!rows.length) return {intent:'clarify', answer:'Tell me which HCP you want to inspect, for example: “select Rao” or “NBA for rao”.', rows:[], sources:sourcesFor(parsed.query), trace};
+  if (!rows.length) return {intent:'clarify', answer:formatResponse('unknown', {}), rows:[], sources:sourcesFor(parsed.query), trace};
   const row = rows[0];
   const rowPlan = plan(row);
-  if (parsed.intent === 'hcp_nba') return {intent:parsed.intent, answer:`${row.name}: ${rowPlan.action.action}\nWhy: ${rowPlan.action.why}\nTiming: ${rowPlan.action.timing}\nApproved content: ${rowPlan.action.content}\nFollow-up: ${rowPlan.followUp}`, rows:[row], plan:rowPlan, sources:sourcesFor(parsed.query), trace};
-  return {intent:parsed.intent, answer:`${row.name} at ${row.account}\nSpecialty: ${row.specialty}\nTRx: ${row.trx}; trend: ${row.trend}%; days since last touch: ${row.last}\nAccess: ${row.barrier}; formulary: ${row.formulary}\nRecommended next action: ${rowPlan.action.action}`, rows:[row], plan:rowPlan, sources:sourcesFor(parsed.query), trace};
+  if (parsed.intent === 'hcp_nba') return {intent:parsed.intent, answer:formatResponse('hcp_nba', {name:row.name, action:rowPlan.action.action, why:rowPlan.action.why, score:rowPlan.action.score, timing:rowPlan.action.timing, content:rowPlan.action.content}), rows:[row], plan:rowPlan, sources:sourcesFor(parsed.query), trace};
+  return {intent:parsed.intent, answer:formatResponse('select_hcp', {name:row.name, tier:row.tier === 'A' ? 'Tier A' : 'Tier B', account:row.account, trx:row.trx, trend:row.trend, daysSinceLastTouch:row.daysSinceLastTouch, barrier:row.barrier, formulary:row.formulary}), rows:[row], plan:rowPlan, sources:sourcesFor(parsed.query), trace};
 }
 function json(res, value, status=200) { res.writeHead(status, {'content-type':'application/json'}); res.end(JSON.stringify(value)); }
 const type = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css'};
 http.createServer(async (req, res) => {
   try {
-    if (req.method === 'GET' && req.url === '/api/hcps') return json(res, hcps);
+    if (req.method === 'GET' && req.url === '/api/hcps') return json(res, rankedHcps());
+    if (req.method === 'GET' && req.url === '/api/briefing') { const ranked=rankedHcps(); const eligible=ranked.filter(row => row.eligible); const top=eligible[0]; return json(res, {message:formatResponse('briefing', {eligibleCount:eligible.length, topName:top?.name || 'no HCP', topScore:top?.priorityScore || 0}), recommended:top, ranked:eligible}); }
     if (req.method === 'GET' && req.url.startsWith('/api/plan')) return json(res, plan(getHcp(new URL(req.url, `http://${req.headers.host}`).searchParams.get('hcpId'))));
     if (req.method === 'POST' && req.url === '/api/ask') { let body=''; for await (const chunk of req) body += chunk; return json(res, await ask(JSON.parse(body))); }
     if (req.method === 'POST' && req.url === '/api/agent') { let body=''; for await (const chunk of req) body += chunk; return json(res, await agent(JSON.parse(body))); }
